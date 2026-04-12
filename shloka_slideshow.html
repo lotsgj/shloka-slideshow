@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shloka Slideshow</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #eeeae3; font-family: Georgia, 'Times New Roman', serif; }
+
+  #drop-zone {
+    margin: 4rem auto; max-width: 480px;
+    border: 1.5px dashed #bbb; border-radius: 14px;
+    padding: 3rem 2rem; text-align: center;
+    cursor: pointer; color: #666; background: #fff; transition: background 0.2s;
+  }
+  #drop-zone:hover { background: #f0efeb; }
+  #drop-zone input[type=file] { display: none; }
+  #drop-zone .icon { font-size: 2.5rem; margin-bottom: 0.75rem; color: #aaa; }
+  #drop-zone h2 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 0.4rem; font-family: system-ui, sans-serif; }
+  #drop-zone p  { font-size: 13px; color: #888; font-family: system-ui, sans-serif; }
+
+  #viewer {
+    display: none; position: fixed; inset: 0;
+    padding: 2vmin; outline: none; background: #eeeae3;
+  }
+
+  .layout {
+    width: 100%; height: 100%;
+    display: grid; grid-template-rows: auto 1fr auto; gap: 2vmin;
+  }
+
+  .row-title {
+    background: #fff; border-radius: 10px; border: 0.5px solid #ddd;
+    display: flex; align-items: center; justify-content: center; padding: 3px 1.5rem;
+  }
+  #f-title {
+    font-size: 10px; font-weight: 600; color: #aaa; font-family: system-ui, sans-serif;
+    letter-spacing: 0.04em; text-align: center; white-space: nowrap;
+  }
+
+  .row-main {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2vmin; min-height: 0;
+  }
+
+  .col {
+    border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.08);
+    display: flex; flex-direction: column; overflow: hidden; min-height: 0;
+  }
+  .col-left  { background: #fffdf5; }
+  .col-right { background: #f4f7fc; }
+
+  .panel-large {
+    flex: 1.618; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 2vmin 4vw; min-height: 0; overflow: hidden;
+  }
+  .panel-small {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 1.5vmin 4vw; min-height: 0; overflow: hidden;
+  }
+  .col-left  .panel-small { border-top: 0.5px solid #e8e2cc; background: #fdf8e8; }
+  .col-right .panel-small { border-top: 0.5px solid #dde4f0; background: #edf1f9; }
+
+  /* Base styles — font-size will be overridden by JS */
+  #f-shloka   { font-size: 16px; font-weight: 500; color: #1a1209; line-height: 1.75; white-space: pre-wrap; font-family: Georgia, serif; }
+  #f-translit { font-size: 16px; font-style: italic; color: #8a7a55; line-height: 1.75; white-space: pre-wrap; font-family: system-ui, sans-serif; }
+  #f-transl   { font-size: 16px; color: #0d1a2e; line-height: 1.75; white-space: pre-wrap; font-family: Georgia, serif; }
+  #f-wbw      { font-size: 16px; color: #3a5080; line-height: 1.75; white-space: pre-wrap; font-family: system-ui, sans-serif; }
+
+  .row-footer {
+    display: flex; align-items: center; gap: 1.5vmin; padding: 0 0.5vmin;
+  }
+  .progress-bar { flex: 1; height: 2px; background: rgba(0,0,0,0.15); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #999; border-radius: 2px; transition: width 0.25s ease; }
+  .hints { font-size: 10px; color: #aaa; letter-spacing: 0.04em; white-space: nowrap; font-family: system-ui, sans-serif; }
+
+  @media (max-width: 640px) {
+    #viewer { overflow-y: auto; height: auto; min-height: 100%; padding: 3vw; }
+    .layout { height: auto; grid-template-rows: auto auto auto auto; gap: 3vw; }
+    .row-main { grid-template-columns: 1fr; gap: 3vw; }
+    .panel-large { flex: none; min-height: 42vw; padding: 4vw 6vw; }
+    .panel-small { flex: none; min-height: 28vw; padding: 3vw 5vw; }
+    #mobile-nav { display: flex !important; }
+    .row-footer .hints { display: none; }
+  }
+
+  #mobile-nav {
+    display: none; justify-content: center; gap: 12px; padding-bottom: 0.5rem;
+  }
+  #mobile-nav button {
+    padding: 8px 28px; font-size: 15px; border-radius: 8px;
+    border: 0.5px solid #ccc; background: #fff; color: #444;
+    cursor: pointer; font-family: system-ui, sans-serif;
+  }
+
+  #goto-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.3); align-items: center; justify-content: center; z-index: 20;
+  }
+  #goto-overlay.show { display: flex; }
+  #goto-box {
+    background: #fff; border: 0.5px solid #ccc; border-radius: 10px;
+    padding: 1.5rem 2rem; text-align: center; min-width: 240px; font-family: system-ui, sans-serif;
+  }
+  #goto-box p { font-size: 13px; color: #666; margin-bottom: 0.75rem; }
+  #goto-input {
+    width: 100%; font-size: 22px; text-align: center; padding: 6px 12px;
+    border-radius: 8px; border: 0.5px solid #ccc; background: #f8f8f8;
+    color: #111; outline: none; font-family: system-ui, sans-serif;
+  }
+  #goto-input:focus { border-color: #999; }
+  #goto-hint { font-size: 11px; color: #bbb; margin-top: 0.6rem; }
+
+  .shloka-num {
+    font-size: 10px; color: #aaa; letter-spacing: 0.04em;
+    font-family: system-ui, sans-serif; white-space: nowrap; flex-shrink: 0;
+  }
+
+  /* ── Audio floater ─────────────────────────────────────── */
+  #audio-floater {
+    display: none;
+    position: fixed; bottom: 3vmin; left: 50%; transform: translateX(-50%);
+    z-index: 30;
+    background: rgba(255,255,255,0.92);
+    border: 0.5px solid #ddd;
+    border-radius: 999px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.10);
+    padding: 7px 18px 7px 10px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    max-width: 72vw;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  #audio-floater.visible { display: flex; }
+  #play-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: none; cursor: pointer; flex-shrink: 0;
+    background: #1a1209;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  #play-btn:hover { background: #3a2a18; }
+  #play-btn svg { width: 16px; height: 16px; fill: #fff; }
+  #floater-text {
+    font-size: 12px; color: #555; font-family: Georgia, serif;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 50vw; line-height: 1.4;
+  }
+  #audio-progress {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+    background: rgba(0,0,0,0.08); border-radius: 0 0 999px 999px; overflow: hidden;
+  }
+  #audio-progress-fill {
+    height: 100%; background: #8a7a55; width: 0%; transition: width 0.5s linear;
+  }
+</style>
+</head>
+<body>
+
+<div id="drop-zone">
+  <input type="file" id="file-input" accept=".csv,.txt" style="display:none">
+  <div class="icon" onclick="document.getElementById('file-input').click()" style="cursor:pointer">📜</div>
+  <h2 onclick="document.getElementById('file-input').click()" style="cursor:pointer">Upload your Shloka CSV</h2>
+  <p style="margin-bottom:1.2rem">Click above or drag a file · Fields delimited by #</p>
+  <div style="display:flex;gap:8px;align-items:center;max-width:360px;margin:0 auto;">
+    <input type="text" id="url-input" placeholder="or paste a public CSV URL…"
+      style="flex:1;padding:7px 12px;border-radius:8px;border:0.5px solid #ccc;
+             font-size:13px;color:#333;outline:none;font-family:system-ui,sans-serif;display:block;">
+    <button onclick="loadFromURL()"
+      style="padding:7px 14px;border-radius:8px;border:0.5px solid #ccc;
+             background:#fff;font-size:13px;cursor:pointer;font-family:system-ui,sans-serif;
+             white-space:nowrap;">Load URL</button>
+  </div>
+</div>
+
+<div id="viewer" tabindex="0">
+  <div class="layout">
+    <div class="row-title">
+      <div id="f-title"></div>
+    </div>
+    <div class="row-main">
+      <div class="col col-left">
+        <div class="panel-large" id="panel-shloka">
+          <div id="f-shloka"></div>
+        </div>
+        <div class="panel-small" id="panel-translit">
+          <div id="f-translit"></div>
+        </div>
+      </div>
+      <div class="col col-right">
+        <div class="panel-large" id="panel-transl">
+          <div id="f-transl"></div>
+        </div>
+        <div class="panel-small" id="panel-wbw">
+          <div id="f-wbw"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row-footer">
+      <div class="shloka-num" id="shloka-num"></div>
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+      <div class="hints">← → navigate · G jump · P play · F / Esc fullscreen</div>
+    </div>
+    <div id="mobile-nav">
+      <button onclick="go(-1)">← Prev</button>
+      <button onclick="go(1)">Next →</button>
+    </div>
+  </div>
+  <!-- Audio floater -->
+  <div id="audio-floater">
+    <button id="play-btn" onclick="toggleAudio()" title="Play / Pause">
+      <svg id="icon-play"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="icon-pause" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    </button>
+    <span id="floater-text">—</span>
+    <div id="audio-progress"><div id="audio-progress-fill"></div></div>
+  </div>
+  <audio id="bg-audio" preload="none"></audio>
+
+  <div id="goto-overlay">
+    <div id="goto-box">
+      <p id="goto-label">Go to shloka</p>
+      <input id="goto-input" type="number" min="1" placeholder="—">
+      <div id="goto-hint">Enter to jump · Esc to cancel</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var rows = [], idx = 0, gotoOpen = false;
+  var cv = document.createElement('canvas');
+  var cx = cv.getContext('2d');
+
+  // Fit text inside a panel using actual DOM measurement (not canvas)
+  // We set the font size, let the browser reflow, check scrollHeight vs clientHeight.
+  // Binary search between lo and hi px.
+  function fitPanel(panelId, textId) {
+    var panel  = document.getElementById(panelId);
+    var textEl = document.getElementById(textId);
+
+    var pw = panel.clientWidth  - 32;  // leave ~16px each side padding
+    var ph = panel.clientHeight - 16;  // leave ~8px top/bottom
+    if (pw <= 0 || ph <= 0) return;
+
+    // Temporarily expand panel overflow so we can measure scrollHeight freely
+    panel.style.overflow = 'visible';
+    textEl.style.width = pw + 'px';
+    textEl.style.display = 'block';
+
+    var lo = 6, hi = 300, best = 6;
+    for (var i = 0; i < 30; i++) {
+      var mid = (lo + hi) / 2;
+      textEl.style.fontSize = mid + 'px';
+      var sw = textEl.scrollWidth;
+      var sh = textEl.scrollHeight;
+      if (sw <= pw && sh <= ph) { best = mid; lo = mid; }
+      else { hi = mid; }
+      if (hi - lo < 0.4) break;
+    }
+    textEl.style.fontSize = Math.floor(best) + 'px';
+    textEl.style.width = '';
+    textEl.style.display = '';
+    panel.style.overflow = 'hidden';
+  }
+
+  function fitTitle() {
+    var row = document.querySelector('.row-title');
+    var el  = document.getElementById('f-title');
+    var pw  = row.clientWidth - 60;
+    var ph  = row.clientHeight - 8;
+    if (pw <= 0 || ph <= 0) return;
+    panel.style.overflow = 'visible';
+    el.style.width = pw + 'px';
+    var lo = 8, hi = 60, best = 8;
+    for (var i = 0; i < 20; i++) {
+      var mid = (lo + hi) / 2;
+      el.style.fontSize = mid + 'px';
+      if (el.scrollWidth <= pw && el.scrollHeight <= ph) { best = mid; lo = mid; }
+      else hi = mid;
+      if (hi - lo < 0.4) break;
+    }
+    el.style.fontSize = Math.floor(best) + 'px';
+    el.style.width = '';
+  }
+
+  function fitAll() {
+    fitPanel('panel-shloka',   'f-shloka');
+    fitPanel('panel-translit', 'f-translit');
+    fitPanel('panel-transl',   'f-transl');
+    fitPanel('panel-wbw',      'f-wbw');
+  }
+
+  function setText(id, val) {
+    document.getElementById(id).textContent = (val || '').replace(/\\n/g, '\n');
+  }
+
+  function parse(text) {
+    var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    var start = lines[0].toLowerCase().indexOf('title') !== -1 ? 1 : 0;
+    rows = lines.slice(start).map(function(l) {
+      var p = l.split('#');
+      return { title: p[0]||'', shloka: p[1]||'', translit: p[2]||'', transl: p[3]||'', wbw: p[4]||'', audio: p[5]||'' };
+    }).filter(function(r){ return r.shloka; });
+    if (!rows.length) return;
+    idx = 0;
+    document.getElementById('drop-zone').style.display = 'none';
+    var viewer = document.getElementById('viewer');
+    viewer.style.display = 'block';
+    viewer.focus();
+    render();
+  }
+
+  function render() {
+    var r = rows[idx];
+    setText('f-title',    r.title + '  (' + (idx+1) + ' / ' + rows.length + ')');
+    setText('f-shloka',   r.shloka);
+    setText('f-translit', r.translit);
+    setText('f-transl',   r.transl);
+    setText('f-wbw',      r.wbw);
+    document.getElementById('progress').style.width = ((idx+1)/rows.length*100) + '%';
+    document.getElementById('shloka-num').textContent = (idx+1) + ' / ' + rows.length;
+    document.getElementById('goto-input').max = rows.length;
+    document.getElementById('goto-label').textContent = 'Go to shloka (1–' + rows.length + ')';
+    // Audio: stop current, load new if available
+    loadAudio(r);
+    // double rAF: first lets browser paint layout, second measures correctly
+    requestAnimationFrame(function() {
+      requestAnimationFrame(fitAll);
+    });
+  }
+
+  /* ── Audio ──────────────────────────────────────────── */
+  var audioPlaying = false;
+
+  function loadAudio(r) {
+    var audio = document.getElementById('bg-audio');
+    var floater = document.getElementById('audio-floater');
+    // Pause and reset previous
+    audio.pause();
+    setPlayIcon(false);
+    audioPlaying = false;
+    document.getElementById('audio-progress-fill').style.width = '0%';
+    if (r.audio && r.audio.trim()) {
+      // Convert Google Drive share URL to direct stream URL if needed
+      var url = r.audio.trim();
+      var driveMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (driveMatch) {
+        url = 'https://drive.google.com/uc?export=open&id=' + driveMatch[1];
+      }
+      audio.src = url;
+      audio.load();
+      // Show floater with first line of shloka as label
+      var label = (r.shloka || '').replace(/\\n/g, ' ').split('\n')[0].trim();
+      document.getElementById('floater-text').textContent = label || r.title || '';
+      floater.className = 'visible';
+    } else {
+      audio.src = '';
+      floater.className = '';
+    }
+  }
+
+  function setPlayIcon(playing) {
+    document.getElementById('icon-play').style.display  = playing ? 'none' : '';
+    document.getElementById('icon-pause').style.display = playing ? '' : 'none';
+  }
+
+  function toggleAudio() {
+    var audio = document.getElementById('bg-audio');
+    if (!audio.src) return;
+    if (audioPlaying) {
+      audio.pause();
+      audioPlaying = false;
+      setPlayIcon(false);
+    } else {
+      audio.play().then(function(){ audioPlaying = true; setPlayIcon(true); }).catch(function(){});
+    }
+  }
+
+  // Update progress bar while playing
+  document.getElementById('bg-audio').addEventListener('timeupdate', function() {
+    var audio = this;
+    if (!audio.duration) return;
+    document.getElementById('audio-progress-fill').style.width = (audio.currentTime / audio.duration * 100) + '%';
+  });
+  document.getElementById('bg-audio').addEventListener('ended', function() {
+    audioPlaying = false;
+    setPlayIcon(false);
+    document.getElementById('audio-progress-fill').style.width = '0%';
+  });
+
+  function go(dir) { idx = (idx + dir + rows.length) % rows.length; render(); }
+
+  function openGoto() {
+    gotoOpen = true;
+    document.getElementById('goto-overlay').classList.add('show');
+    var inp = document.getElementById('goto-input'); inp.value = ''; inp.focus();
+  }
+  function closeGoto() {
+    gotoOpen = false;
+    document.getElementById('goto-overlay').classList.remove('show');
+    document.getElementById('viewer').focus();
+  }
+
+  document.getElementById('goto-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      var v = parseInt(e.target.value, 10);
+      if (!isNaN(v) && v >= 1 && v <= rows.length) { idx = v-1; render(); }
+      closeGoto(); e.stopPropagation();
+    } else if (e.key === 'Escape') { closeGoto(); e.stopPropagation(); }
+  });
+
+  function toggleFullscreen() {
+    var el = document.getElementById('viewer');
+    var isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen).call(el);
+    else (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen).call(document);
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (!rows.length || gotoOpen) return;
+    if (e.key === 'ArrowRight') go(1);
+    else if (e.key === 'ArrowLeft') go(-1);
+    else if (e.key.toLowerCase() === 'g') openGoto();
+    else if (e.key.toLowerCase() === 'p') toggleAudio();
+    else if (e.key.toLowerCase() === 'f') toggleFullscreen();
+    else if (e.key === 'Escape') {
+      if (document.fullscreenElement || document.webkitFullscreenElement) toggleFullscreen();
+    }
+  });
+
+  function loadFromURL() {
+    var url = document.getElementById('url-input').value.trim();
+    if (!url) return;
+    // Support GitHub blob URLs → raw
+    url = url.replace('github.com', 'raw.githubusercontent.com')
+              .replace('/blob/', '/');
+    fetch(url)
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(text) { parse(text); })
+      .catch(function(err) { alert('Could not load URL:\n' + err.message); });
+  }
+
+  // Also allow pressing Enter in the URL input
+  document.getElementById('url-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') loadFromURL();
+  });
+
+  document.getElementById('file-input').addEventListener('change', function(e) {
+    var f = e.target.files[0]; if (!f) return;
+    var r = new FileReader(); r.onload = function(ev){ parse(ev.target.result); }; r.readAsText(f);
+  });
+  var dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.style.background='#f0efeb'; });
+  dz.addEventListener('dragleave', function(){ dz.style.background=''; });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault(); dz.style.background='';
+    var f = e.dataTransfer.files[0]; if (!f) return;
+    var r = new FileReader(); r.onload = function(ev){ parse(ev.target.result); }; r.readAsText(f);
+  });
+
+  var resizeTimer;
+  window.addEventListener('resize', function(){ clearTimeout(resizeTimer); resizeTimer = setTimeout(fitAll, 80); });
+  document.addEventListener('fullscreenchange', function(){ setTimeout(fitAll, 120); });
+  document.addEventListener('webkitfullscreenchange', function(){ setTimeout(fitAll, 120); });
+</script>
+</body>
+</html>

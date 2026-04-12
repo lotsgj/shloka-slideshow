@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gita Chapter 7 — CSV Extractor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f4f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
+  .card { background: #fff; border-radius: 14px; border: 0.5px solid #ddd; padding: 2.5rem 2rem; max-width: 580px; width: 100%; text-align: center; }
+  h1 { font-size: 18px; font-weight: 600; color: #222; margin-bottom: 0.4rem; }
+  .sub { font-size: 13px; color: #888; margin-bottom: 1.8rem; line-height: 1.6; }
+  .progress-wrap { background: #eee; border-radius: 8px; height: 8px; margin-bottom: 0.7rem; overflow: hidden; }
+  .progress-bar { height: 100%; background: #5a7fd4; border-radius: 8px; width: 0%; transition: width 0.2s ease; }
+  .status { font-size: 13px; color: #555; margin-bottom: 1.5rem; min-height: 20px; }
+  .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  button { padding: 10px 24px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; color: #333; font-size: 14px; cursor: pointer; }
+  button:hover:not(:disabled) { background: #f0f0f0; }
+  button.primary { background: #5a7fd4; color: #fff; border-color: #4a6fc0; }
+  button.primary:hover:not(:disabled) { background: #4a6fc0; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .log { margin-top: 1.5rem; text-align: left; font-size: 11px; color: #888; max-height: 200px; overflow-y: auto; line-height: 1.9; font-family: monospace; border-top: 0.5px solid #eee; padding-top: 0.75rem; }
+  .err { color: #c0392b; }
+  .note { font-size: 11px; color: #999; margin-top: 1.2rem; line-height: 1.7; text-align: left; background: #fafafa; border-radius: 8px; padding: 0.75rem 1rem; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 4px; font-size: 10px; }
+  .chapter-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 1.5rem; }
+  .chapter-row label { font-size: 13px; color: #555; font-weight: 500; }
+  .chapter-row input[type=number] { width: 64px; padding: 6px 10px; font-size: 15px; text-align: center; border-radius: 8px; border: 0.5px solid #ccc; background: #f8f8f8; color: #111; outline: none; }
+  .chapter-row input[type=number]:focus { border-color: #5a7fd4; }
+  .chapter-row span { font-size: 12px; color: #aaa; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Bhagavad Gita — CSV Extractor</h1>
+  <p class="sub">Choose a chapter, then fetch all its verses as a <code>#</code>-delimited CSV for the slideshow viewer.</p>
+
+  <div class="chapter-row">
+    <label for="chapter-input">Chapter</label>
+    <input type="number" id="chapter-input" min="1" max="18" value="7" onchange="updateVerseCount()">
+    <span id="verse-count-label">30 verses</span>
+  </div>
+
+  <div class="progress-wrap"><div class="progress-bar" id="bar"></div></div>
+  <div class="status" id="status">Ready. Click Start to begin.</div>
+
+  <div class="btns">
+    <button class="primary" id="btn-start" onclick="startScrape()">▶ Start fetching</button>
+    <button id="btn-dl" onclick="downloadCSV()" disabled>⬇ Download CSV</button>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="note">
+    <strong>If proxies fail:</strong> Try Chrome or Firefox. Or run <code>python3 -m http.server 8080</code> in this folder and open <code>localhost:8080</code>.<br><br>
+    Output: <code>title # shloka_in_sanskrit # transliteration_en # translation_en # word_by_word_en</code>
+  </div>
+</div>
+
+<script>
+var csvRows = [];
+var TOTAL = 30, CHAPTER = 7;
+
+// Verse counts for all 18 chapters of the Bhagavad Gita
+var CHAPTER_VERSES = [0, 47, 72, 43, 42, 29, 47, 30, 28, 34, 42, 55, 20, 35, 27, 20, 24, 28, 78];
+
+function updateVerseCount() {
+  var ch = parseInt(document.getElementById('chapter-input').value, 10);
+  if (ch >= 1 && ch <= 18) {
+    var v = CHAPTER_VERSES[ch];
+    document.getElementById('verse-count-label').textContent = v + ' verse' + (v !== 1 ? 's' : '');
+  } else {
+    document.getElementById('verse-count-label').textContent = '';
+  }
+}
+
+// Run once on load to show default
+updateVerseCount();
+
+var PROXIES = [
+  function(u){ return 'https://corsproxy.io/?' + encodeURIComponent(u); },
+  function(u){ return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
+  function(u){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
+  function(u){ return 'https://proxy.cors.sh/' + u; },
+  function(u){ return 'https://yacdn.org/proxy/' + u; },
+];
+
+function logMsg(msg, isErr) {
+  var el = document.getElementById('log');
+  var d = document.createElement('div');
+  if (isErr) d.className = 'err';
+  d.textContent = msg;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+function setBar(pct) { document.getElementById('bar').style.width = Math.min(pct,100) + '%'; }
+function sleep(ms) { return new Promise(function(r){ setTimeout(r,ms); }); }
+
+async function tryFetch(url) {
+  var ctrl = new AbortController();
+  var t = setTimeout(function(){ ctrl.abort(); }, 9000);
+  try {
+    var r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var txt = await r.text();
+    if (!txt || txt.length < 200) throw new Error('empty');
+    // unwrap allorigins JSON envelope if present
+    if (txt.trim()[0] === '{') {
+      try { var j = JSON.parse(txt); txt = j.contents || j.body || txt; } catch(e){}
+    }
+    return txt;
+  } catch(e) { clearTimeout(t); throw e; }
+}
+
+async function fetchVerseHTML(v) {
+  var target = 'https://www.holy-bhagavad-gita.org/chapter/' + CHAPTER + '/verse/' + v + '/';
+  var errs = [];
+  for (var i = 0; i < PROXIES.length; i++) {
+    try { return await tryFetch(PROXIES[i](target)); }
+    catch(e) { errs.push('p'+(i+1)+':'+e.message); }
+  }
+  throw new Error(errs.join(' | '));
+}
+
+// Convert raw HTML (or already-plain text) to plain text lines
+function toPlainLines(raw) {
+  // If it looks like HTML, convert; otherwise use as-is
+  var isHTML = /<[a-z]/i.test(raw);
+  var text = raw;
+  if (isHTML) {
+    // Use DOMParser for accurate conversion
+    var doc = new DOMParser().parseFromString(raw, 'text/html');
+    // Replace <br> with newline before innerText strips them
+    doc.querySelectorAll('br').forEach(function(br){
+      br.replaceWith('\n');
+    });
+    text = doc.body ? doc.body.innerText : doc.documentElement.innerText;
+  }
+  return text.split('\n').map(function(l){ return l.trim(); });
+}
+
+var devaRe = /[\u0900-\u097F]/;
+var iastRe = /[āīūṛṝḷēōṃḥṅñṭḍṇśṣḻĀĪŪṄÑṬḌṆŚṢḺ]/;
+
+function parseVerse(raw, v) {
+  var lines = toPlainLines(raw);
+
+  // ── 1. Anchor: find "# Bhagavad Gita: Chapter N, Verse N" heading ────────
+  //    This appears in the page once, after the language nav links.
+  //    We scan AFTER this line so the Gujarati/Tamil script links don't
+  //    accidentally trigger the Devanagari detector.
+  var startIdx = -1;
+  for (var i = 0; i < lines.length; i++) {
+    if (/Bhagavad Gita: Chapter \d+, Verse \d+/.test(lines[i])) {
+      // Take the LAST occurrence of this pattern (in case it repeats in header)
+      startIdx = i;
+    }
+  }
+  if (startIdx < 0) return null;
+
+  // ── 2. From anchor onwards, collect Sanskrit then IAST ───────────────────
+  // Structure in plain text (proxies strip HTML, each <br> → newline or space):
+  //   [heading line]
+  //   [blank]
+  //   Sanskrit line 1        ← consecutive, no blanks between
+  //   Sanskrit line 2
+  //   [blank]
+  //   IAST line 1            ← consecutive, no blanks between
+  //   IAST line 2
+  //   [blank]
+  //   "Your browser..." OR word-by-word line
+
+  var sanLines = [], transLines = [], wbw = '', translation = '';
+  var state = 'seek-san';
+
+  for (var i = startIdx + 1; i < lines.length; i++) {
+    var l = lines[i];
+    var empty   = (l === '');
+    var hasDeva = devaRe.test(l);
+    var hasIAST = iastRe.test(l);
+    var hasEm   = l.indexOf('—') !== -1;
+
+    // Stop scanning verse body once we hit Translation or Commentary
+    if (/^##\s*(Translation|Commentary)/.test(l) || /^Translation\s*$/.test(l)) break;
+
+    if (state === 'seek-san') {
+      if (hasDeva) {
+        state = 'san';
+        var cl = l.replace(/[|।]+\s*\d+\s*[|।]*/g,'').replace(/\|\s*$/,'').trim();
+        if (cl) sanLines.push(cl);
+      }
+
+    } else if (state === 'san') {
+      if (hasDeva) {
+        // Another Sanskrit line
+        var cl = l.replace(/[|।]+\s*\d+\s*[|।]*/g,'').replace(/\|\s*$/,'').trim();
+        if (cl) sanLines.push(cl);
+      } else if (empty) {
+        // blank after Sanskrit → move to seek IAST
+        state = 'seek-trans';
+      } else {
+        // Non-empty non-Devanagari immediately after Sanskrit
+        // (happens when <br> becomes space, so lines run together — shouldn't occur but be safe)
+        state = 'seek-trans';
+        if (hasIAST && !hasEm) { state = 'trans'; transLines.push(l); }
+      }
+
+    } else if (state === 'seek-trans') {
+      if (!empty && hasIAST && !hasDeva && !hasEm) {
+        state = 'trans';
+        transLines.push(l);
+      } else if (!empty && !hasIAST && !hasDeva) {
+        // Non-IAST content after Sanskrit — we've gone past the verse text
+        // (e.g. "Your browser does not support...")
+        if (transLines.length === 0 && l.indexOf('browser') === -1) {
+          // keep seeking — might be a stray blank line converted differently
+        } else if (transLines.length > 0) {
+          break;
+        }
+      }
+
+    } else if (state === 'trans') {
+      if (!empty && hasIAST && !hasDeva && !hasEm) {
+        transLines.push(l);
+      } else {
+        // Done with IAST block
+        state = 'done';
+      }
+    }
+
+    // ── Word-by-word: IAST line that also has em-dash ─────────────────────
+    if (wbw === '' && hasIAST && hasEm && !hasDeva && l.indexOf('http') === -1 && l.length > 15) {
+      wbw = l;
+    }
+  }
+
+  // ── 3. Translation ───────────────────────────────────────────────────────
+  // Find "## Translation" or "Translation" heading, then the BG X.Y: line
+  for (var i = 0; i < lines.length; i++) {
+    if (/^##\s*Translation/.test(lines[i]) || /^Translation\s*$/.test(lines[i])) {
+      for (var j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+        var tl = lines[j];
+        // Strip leading "BG 7.1:" label (may be on same or separate line)
+        tl = tl.replace(/^BG\s*[\d.]+\s*:\s*/i, '').replace(/\*([^*]+)\*/g, '$1').trim();
+        if (tl.length > 8) { translation = tl; break; }
+      }
+      break;
+    }
+  }
+
+  function clean(s) { return (s||'').replace(/\s+/g,' ').replace(/#/g,'').trim(); }
+
+  return [
+    'BG ' + CHAPTER + '.' + v,
+    clean(sanLines.join('\\n')),
+    clean(transLines.join('\\n')),
+    clean(translation),
+    clean(wbw)
+  ].join('#');
+}
+
+async function startScrape() {
+  var chInput = parseInt(document.getElementById('chapter-input').value, 10);
+  if (isNaN(chInput) || chInput < 1 || chInput > 18) {
+    setStatus('Please enter a chapter between 1 and 18.');
+    return;
+  }
+  CHAPTER = chInput;
+  TOTAL   = CHAPTER_VERSES[CHAPTER];
+
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-dl').disabled = true;
+  document.getElementById('chapter-input').disabled = true;
+  document.getElementById('log').innerHTML = '';
+  csvRows = ['title#shloka_in_sanskrit#transliteration_en#translation_en#word_by_word_en'];
+
+  for (var v = 1; v <= TOTAL; v++) {
+    setStatus('Ch.' + CHAPTER + ' — verse ' + v + ' / ' + TOTAL + '…');
+    setBar((v-1) / TOTAL * 100);
+    try {
+      var html = await fetchVerseHTML(v);
+      var row  = parseVerse(html, v);
+      if (!row) throw new Error('heading not found in page');
+      csvRows.push(row);
+      logMsg('✓  BG ' + CHAPTER + '.' + v);
+    } catch(e) {
+      logMsg('✗  BG ' + CHAPTER + '.' + v + '  —  ' + e.message, true);
+      csvRows.push('BG ' + CHAPTER + '.' + v + '#(error)###');
+    }
+    await sleep(350);
+  }
+
+  setBar(100);
+  setStatus('Done — ' + (csvRows.length-1) + ' / ' + TOTAL + ' verses from Chapter ' + CHAPTER + '.');
+  document.getElementById('btn-dl').disabled = false;
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('chapter-input').disabled = false;
+}
+
+function downloadCSV() {
+  var blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gita_chapter' + CHAPTER + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+</script>
+</body>
+</html>

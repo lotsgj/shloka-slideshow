@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shloka CSV Editor</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: system-ui, sans-serif; background: #eeeae3; }
+
+/* ── Drop zone ─────────────────────────────────────────── */
+#drop-zone {
+  margin: 4rem auto; max-width: 480px;
+  border: 1.5px dashed #bbb; border-radius: 14px;
+  padding: 3rem 2rem; text-align: center;
+  cursor: pointer; background: #fff; transition: background 0.2s;
+}
+#drop-zone:hover { background: #f0efeb; }
+#drop-zone input[type=file] { display: none; }
+#drop-zone .icon { font-size: 2.5rem; margin-bottom: 0.75rem; color: #aaa; }
+#drop-zone h2 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 0.4rem; }
+#drop-zone p  { font-size: 13px; color: #888; }
+
+/* ── Editor shell ──────────────────────────────────────── */
+#editor {
+  display: none;
+  position: fixed; inset: 0;
+  flex-direction: column;
+  background: #eeeae3;
+}
+
+/* ── Top bar ───────────────────────────────────────────── */
+#topbar {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border-bottom: 0.5px solid #ddd;
+  padding: 6px 14px; flex-shrink: 0;
+}
+#topbar .file-name { font-size: 12px; color: #999; margin-right: auto; }
+.unsaved-dot { width: 7px; height: 7px; border-radius: 50%; background: #e07b39; flex-shrink: 0; display: none; }
+.unsaved-dot.show { display: inline-block; }
+.nav-row { display: flex; align-items: center; gap: 6px; }
+.counter { font-size: 12px; color: #aaa; min-width: 54px; text-align: center; }
+button.tb {
+  padding: 5px 13px; font-size: 12px; border-radius: 7px;
+  border: 0.5px solid #ddd; background: #f0f0f0; color: #bbb; cursor: default;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+/* Active save: blue when there are unsaved edits */
+button.tb.save.active { background: #5a7fd4; color: #fff; border-color: #4a6fc0; cursor: pointer; }
+button.tb.save.active:hover { background: #4a6fc0; }
+/* Active dl: green when there are saved-but-not-downloaded changes */
+button.tb.dl.active  { background: #3a8c5c; color: #fff; border-color: #2e7a4e; cursor: pointer; }
+button.tb.dl.active:hover  { background: #2e7a4e; }
+.hint-label { font-size: 10px; color: #bbb; letter-spacing: 0.03em; }
+
+/* Progress */
+#prog-bar { height: 2px; background: rgba(0,0,0,0.08); flex-shrink: 0; }
+#prog-fill { height: 100%; background: #5a7fd4; transition: width 0.2s; width: 0%; }
+
+/* ── Slide layout (mirrors viewer exactly) ─────────────── */
+#slide-wrap {
+  flex: 1; padding: 2vmin; min-height: 0; display: flex; flex-direction: column;
+}
+.layout {
+  flex: 1; display: grid; grid-template-rows: auto 1fr; gap: 2vmin; min-height: 0;
+}
+
+/* Title row */
+.row-title {
+  background: #fff; border-radius: 10px; border: 0.5px solid #ddd;
+  display: flex; align-items: center; justify-content: center; padding: 3px 1.5rem;
+  position: relative;
+}
+/* Title: read-only display + tiny counter */
+#f-title-display {
+  font-size: 10px; font-weight: 600; color: #aaa;
+  letter-spacing: 0.04em; text-align: center; white-space: nowrap;
+}
+
+/* Two-column main row */
+.row-main {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2vmin; min-height: 0;
+}
+.col {
+  border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.08);
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+}
+.col-left  { background: #fffdf5; }
+.col-right { background: #f4f7fc; }
+
+.panel-large {
+  flex: 1.618; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 2vmin 4vw; min-height: 0; overflow: hidden; position: relative;
+}
+.panel-small {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 1.5vmin 4vw; min-height: 0; overflow: hidden; position: relative;
+}
+.col-left  .panel-small { border-top: 0.5px solid #e8e2cc; background: #fdf8e8; }
+.col-right .panel-small { border-top: 0.5px solid #dde4f0; background: #edf1f9; }
+
+/* Editable content divs — styled like the viewer */
+[contenteditable] {
+  outline: none; white-space: pre-wrap;
+  cursor: text; width: 100%; line-height: 1.75;
+  border-radius: 4px; transition: box-shadow 0.15s;
+}
+[contenteditable]:focus {
+  box-shadow: 0 0 0 2px rgba(90,127,212,0.25);
+}
+/* Subtle edit affordance on hover */
+[contenteditable]:hover { background: rgba(90,127,212,0.04); border-radius: 6px; }
+
+#f-shloka   { font-weight: 500; color: #1a1209; font-family: Georgia, serif; }
+#f-translit { font-style: italic; color: #8a7a55; font-family: system-ui, sans-serif; }
+#f-transl   { color: #0d1a2e; font-family: Georgia, serif; }
+#f-wbw      { color: #3a5080; font-family: system-ui, sans-serif; }
+
+/* Title editable */
+#f-title {
+  font-size: 10px; font-weight: 600; color: #aaa;
+  letter-spacing: 0.04em; text-align: center;
+  min-width: 40px; display: inline-block;
+}
+
+/* Edit-mode indicator strip on focused panel */
+.panel-large:focus-within,
+.panel-small:focus-within,
+.row-title:focus-within {
+  outline: 1.5px solid rgba(90,127,212,0.4);
+  border-radius: 12px;
+}
+.row-title:focus-within { border-radius: 10px; }
+
+/* ── Unsaved modal ─────────────────────────────────────── */
+#modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35); align-items: center; justify-content: center; z-index: 100;
+}
+#modal-overlay.show { display: flex; }
+#modal-box {
+  background: #fff; border-radius: 12px; border: 0.5px solid #ddd;
+  padding: 1.5rem 2rem; max-width: 320px; width: 90%; text-align: center;
+}
+#modal-box h3 { font-size: 15px; font-weight: 600; color: #222; margin-bottom: 0.5rem; }
+#modal-box p  { font-size: 13px; color: #666; margin-bottom: 1.25rem; line-height: 1.5; }
+.modal-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.modal-btns button { padding: 7px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 0.5px solid #ccc; background: #f5f5f5; color: #333; }
+.modal-btns button.danger { background: #e05252; color: #fff; border-color: #c84040; }
+.modal-btns button:hover { opacity: 0.85; }
+
+/* ── Audio URL bar ──────────────────────────────────── */
+#audio-bar {
+  flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  background: #fafaf8; border-top: 0.5px solid #eee; padding: 6px 2vmin;
+}
+#audio-bar label {
+  font-size: 10px; font-weight: 600; color: #aaa;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap; flex-shrink: 0;
+}
+#audio-url-input {
+  flex: 1; font-size: 12px; color: #444; font-family: system-ui, sans-serif;
+  border: 0.5px solid #e0e0e0; border-radius: 7px;
+  padding: 5px 9px; background: #fff; outline: none;
+}
+#audio-url-input:focus { border-color: #5a7fd4; }
+#audio-url-input::placeholder { color: #ccc; }
+#audio-play-btn {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  border: none; background: #1a1209; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+#audio-play-btn:hover { background: #3a2a18; }
+#audio-play-btn svg { width: 12px; height: 12px; fill: #fff; }
+
+/* Mobile: stack panels */
+@media (max-width: 640px) {
+  #slide-wrap { padding: 3vw; overflow-y: auto; }
+  .layout { grid-template-rows: auto auto; }
+  .row-main { grid-template-columns: 1fr; }
+  .panel-large { flex: none; min-height: 36vw; }
+  .panel-small { flex: none; min-height: 24vw; }
+}
+</style>
+</head>
+<body>
+
+<!-- Drop zone -->
+<div id="drop-zone">
+  <input type="file" id="file-input" accept=".csv,.txt">
+  <div class="icon" onclick="document.getElementById('file-input').click()" style="cursor:pointer">✏️</div>
+  <h2 onclick="document.getElementById('file-input').click()" style="cursor:pointer">Open CSV to edit</h2>
+  <p style="margin-bottom:1.2rem">Click above or drag a file · Fields delimited by #</p>
+  <div style="display:flex;gap:8px;align-items:center;max-width:380px;margin:0 auto;">
+    <input type="text" id="csv-url-input" placeholder="or paste a public CSV URL…"
+      style="flex:1;padding:7px 12px;border-radius:8px;border:0.5px solid #ccc;
+             font-size:13px;color:#333;outline:none;font-family:system-ui,sans-serif;display:block;">
+    <button onclick="loadFromURL()"
+      style="padding:7px 14px;border-radius:8px;border:0.5px solid #ccc;
+             background:#fff;font-size:13px;cursor:pointer;font-family:system-ui,sans-serif;
+             white-space:nowrap;">Load URL</button>
+  </div>
+</div>
+
+<!-- Editor -->
+<div id="editor">
+
+  <div id="topbar">
+    <span class="file-name" id="file-label">—</span>
+    <span class="hint-label">click any text to edit</span>
+    <div class="nav-row">
+      <button class="tb" onclick="navigate(-1)">←</button>
+      <span class="counter" id="counter">—</span>
+      <button class="tb" onclick="navigate(1)">→</button>
+    </div>
+    <span class="unsaved-dot" id="unsaved-dot" title="Unsaved changes"></span>
+    <button class="tb save" id="btn-save" onclick="saveRow()">Save</button>
+    <button class="tb dl"   id="btn-dl" onclick="downloadCSV()">Download CSV</button>
+  </div>
+  <div id="prog-bar"><div id="prog-fill"></div></div>
+
+  <div id="slide-wrap">
+    <div class="layout">
+
+      <!-- Row 1: Title -->
+      <div class="row-title">
+        <div id="f-title" contenteditable="true" spellcheck="false" oninput="onEdit()"></div>
+        <span style="font-size:10px;color:#ccc;margin-left:8px;" id="counter2"></span>
+      </div>
+
+      <!-- Row 2: two columns -->
+      <div class="row-main">
+
+        <!-- Left: Sanskrit + transliteration -->
+        <div class="col col-left">
+          <div class="panel-large" id="panel-shloka">
+            <div id="f-shloka" contenteditable="true" spellcheck="false" oninput="onEdit()"></div>
+          </div>
+          <div class="panel-small" id="panel-translit">
+            <div id="f-translit" contenteditable="true" spellcheck="false" oninput="onEdit()"></div>
+          </div>
+        </div>
+
+        <!-- Right: Translation + word-by-word -->
+        <div class="col col-right">
+          <div class="panel-large" id="panel-transl">
+            <div id="f-transl" contenteditable="true" spellcheck="false" oninput="onEdit()"></div>
+          </div>
+          <div class="panel-small" id="panel-wbw">
+            <div id="f-wbw" contenteditable="true" spellcheck="false" oninput="onEdit()"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio URL bar -->
+  <div id="audio-bar">
+    <label>Audio URL</label>
+    <input type="text" id="audio-url-input" spellcheck="false"
+           placeholder="paste Google Drive or GitHub Pages MP3 URL…"
+           oninput="onEdit()">
+    <button id="audio-play-btn" title="Preview audio" onclick="previewAudio()">
+      <svg id="ap-play"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="ap-pause" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    </button>
+  </div>
+  <audio id="preview-audio" preload="none"></audio>
+
+</div>
+
+<!-- Unsaved modal -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3>Unsaved changes</h3>
+    <p>You have unsaved edits. What would you like to do?</p>
+    <div class="modal-btns">
+      <button onclick="modalSaveAndGo()">Save &amp; continue</button>
+      <button class="danger" onclick="modalDiscardAndGo()">Discard</button>
+      <button onclick="closeModal()">Stay</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var rows = [], idx = 0, dirty = false, savedChanges = false, pendingIdx = -1, fileName = 'shlokas.csv';
+
+/* ── File loading ───────────────────────────────────────────── */
+function loadFromURL() {
+  var url = document.getElementById('csv-url-input').value.trim();
+  if (!url) return;
+  // Convert GitHub blob URL to raw
+  url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+  fetch(url)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .then(function(text) { fileName = url.split('/').pop() || 'remote.csv'; loadCSV(text); })
+    .catch(function(err) { alert('Could not load URL:\n' + err.message); });
+}
+
+document.getElementById('csv-url-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') loadFromURL();
+});
+
+document.getElementById('file-input').addEventListener('change', function(e){
+  var f = e.target.files[0]; if(!f) return;
+  fileName = f.name;
+  var r = new FileReader(); r.onload = function(ev){ loadCSV(ev.target.result); }; r.readAsText(f);
+});
+var dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.style.background='#f0efeb'; });
+dz.addEventListener('dragleave', function(){ dz.style.background=''; });
+dz.addEventListener('drop', function(e){
+  e.preventDefault(); dz.style.background='';
+  var f = e.dataTransfer.files[0]; if(!f) return;
+  fileName = f.name;
+  var r = new FileReader(); r.onload = function(ev){ loadCSV(ev.target.result); }; r.readAsText(f);
+});
+
+function loadCSV(text) {
+  var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+  var start = lines[0].toLowerCase().indexOf('title') !== -1 ? 1 : 0;
+  rows = lines.slice(start).map(function(l){
+    var p = l.split('#');
+    return { title: p[0]||'', shloka: p[1]||'', translit: p[2]||'', transl: p[3]||'', wbw: p[4]||'', audio: p[5]||'' };
+  }).filter(function(r){ return r.title||r.shloka; });
+  if (!rows.length) return;
+  idx = 0; dirty = false; savedChanges = false;
+  document.getElementById('drop-zone').style.display = 'none';
+  var ed = document.getElementById('editor'); ed.style.display = 'flex';
+  document.getElementById('file-label').textContent = fileName;
+  renderRow();
+  updateButtons();
+}
+
+/* ── Render ─────────────────────────────────────────────────── */
+// Store \n literally in contenteditable as actual newlines (pre-wrap handles display)
+function setField(id, val) {
+  // Replace literal \n in CSV with real newlines for display
+  document.getElementById(id).textContent = val.replace(/\\n/g, '\n');
+}
+function getField(id) {
+  // Convert real newlines back to \n for CSV storage
+  return document.getElementById(id).innerText.replace(/\n/g, '\\n').replace(/\\n$/, '');
+}
+
+function renderRow() {
+  var r = rows[idx];
+  setField('f-title',   r.title);
+  setField('f-shloka',  r.shloka);
+  setField('f-translit',r.translit);
+  setField('f-transl',  r.transl);
+  setField('f-wbw',     r.wbw);
+  var counterText = (idx+1) + ' / ' + rows.length;
+  document.getElementById('counter').textContent  = counterText;
+  document.getElementById('counter2').textContent = counterText;
+  document.getElementById('audio-url-input').value = r.audio || '';
+  stopPreview();
+  document.getElementById('prog-fill').style.width = ((idx+1)/rows.length*100) + '%';
+  setDirty(false);
+  requestAnimationFrame(function(){ requestAnimationFrame(fitAll); });
+}
+
+/* ── Auto-fit text to panels (same logic as slideshow) ─────── */
+function fitPanel(panelId, textId) {
+  var panel  = document.getElementById(panelId);
+  var textEl = document.getElementById(textId);
+  var pw = panel.clientWidth  * 0.84;
+  var ph = panel.clientHeight * 0.84;
+  if (pw <= 0 || ph <= 0) return;
+  // Temporarily allow overflow to measure
+  var origOverflow = panel.style.overflow;
+  panel.style.overflow = 'visible';
+  textEl.style.width = pw + 'px';
+  textEl.style.display = 'block';
+  var lo = 6, hi = 260, best = 6;
+  for (var i = 0; i < 28; i++) {
+    var mid = (lo + hi) / 2;
+    textEl.style.fontSize = mid + 'px';
+    if (textEl.scrollWidth <= pw && textEl.scrollHeight <= ph) { best = mid; lo = mid; }
+    else hi = mid;
+    if (hi - lo < 0.4) break;
+  }
+  textEl.style.fontSize = Math.floor(best) + 'px';
+  textEl.style.width = '';
+  textEl.style.display = '';
+  panel.style.overflow = origOverflow || 'hidden';
+}
+function fitAll() {
+  fitPanel('panel-shloka',   'f-shloka');
+  fitPanel('panel-translit', 'f-translit');
+  fitPanel('panel-transl',   'f-transl');
+  fitPanel('panel-wbw',      'f-wbw');
+}
+var resizeTimer;
+window.addEventListener('resize', function(){ clearTimeout(resizeTimer); resizeTimer = setTimeout(fitAll, 80); });
+
+/* ── Dirty state ────────────────────────────────────────────── */
+function updateButtons() {
+  var saveBtn = document.getElementById('btn-save');
+  var dlBtn   = document.getElementById('btn-dl');
+  saveBtn.className = 'tb save' + (dirty ? ' active' : '');
+  dlBtn.className   = 'tb dl'   + (savedChanges ? ' active' : '');
+}
+function setDirty(val) {
+  dirty = val;
+  document.getElementById('unsaved-dot').className = 'unsaved-dot' + (val ? ' show' : '');
+  updateButtons();
+}
+function setSavedChanges(val) {
+  savedChanges = val;
+  updateButtons();
+}
+function onEdit() {
+  setDirty(true);
+  // Refit after typing
+  clearTimeout(resizeTimer); resizeTimer = setTimeout(fitAll, 150);
+}
+
+/* ── Save ───────────────────────────────────────────────────── */
+function saveRow() {
+  rows[idx] = {
+    title:    getField('f-title'),
+    shloka:   getField('f-shloka'),
+    translit: getField('f-translit'),
+    transl:   getField('f-transl'),
+    wbw:      getField('f-wbw'),
+    audio:    document.getElementById('audio-url-input').value.trim(),
+  };
+  setDirty(false);
+  setSavedChanges(true);
+}
+
+/* ── Navigation ─────────────────────────────────────────────── */
+function navigate(dir) {
+  var next = (idx + dir + rows.length) % rows.length;
+  stopPreview();
+  if (dirty) { pendingIdx = next; showModal(); }
+  else { idx = next; renderRow(); }
+}
+
+/* ── Modal ──────────────────────────────────────────────────── */
+function showModal()  { document.getElementById('modal-overlay').className = 'show'; }
+function closeModal() { document.getElementById('modal-overlay').className = ''; pendingIdx = -1; }
+function modalSaveAndGo()    { saveRow(); var d=pendingIdx; closeModal(); idx=d; renderRow(); }
+function modalDiscardAndGo() { var d=pendingIdx; closeModal(); setDirty(false); idx=d; renderRow(); }
+
+/* ── Audio preview ──────────────────────────────────────────── */
+var previewPlaying = false;
+
+function stopPreview() {
+  var a = document.getElementById('preview-audio');
+  a.pause(); a.currentTime = 0;
+  previewPlaying = false;
+  document.getElementById('ap-play').style.display  = '';
+  document.getElementById('ap-pause').style.display = 'none';
+}
+
+function previewAudio() {
+  var url = document.getElementById('audio-url-input').value.trim();
+  if (!url) return;
+  var a = document.getElementById('preview-audio');
+  if (previewPlaying) { stopPreview(); return; }
+  var m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) url = 'https://drive.google.com/uc?export=open&id=' + m[1];
+  a.src = url; a.load();
+  a.play().then(function() {
+    previewPlaying = true;
+    document.getElementById('ap-play').style.display  = 'none';
+    document.getElementById('ap-pause').style.display = '';
+  }).catch(function(e) { alert('Could not play:\n' + e.message); });
+}
+
+document.getElementById('preview-audio').addEventListener('ended', function() {
+  previewPlaying = false;
+  document.getElementById('ap-play').style.display  = '';
+  document.getElementById('ap-pause').style.display = 'none';
+});
+
+/* ── Keyboard ───────────────────────────────────────────────── */
+document.addEventListener('keydown', function(e){
+  if (!rows.length) return;
+  if ((e.ctrlKey||e.metaKey) && e.key==='s') { e.preventDefault(); saveRow(); return; }
+  // Arrow keys only when not focused inside a contenteditable
+  var active = document.activeElement;
+  var inEdit = active && active.isContentEditable;
+  if (!inEdit) {
+    if (e.key==='ArrowRight') navigate(1);
+    else if (e.key==='ArrowLeft') navigate(-1);
+  }
+});
+
+/* ── Page-close warning ─────────────────────────────────────── */
+window.addEventListener('beforeunload', function(e){ if(dirty||savedChanges){ e.preventDefault(); e.returnValue=''; } });
+
+/* ── Download ───────────────────────────────────────────────── */
+function downloadCSV() {
+  if (!savedChanges && !dirty) return;
+  if (dirty) saveRow();
+  var lines = ['title#shloka_in_sanskrit#transliteration_en#translation_en#word_by_word_en'];
+  rows.forEach(function(r){
+    lines.push([r.title, r.shloka, r.translit, r.transl, r.wbw, r.audio||''].join('#'));
+  });
+  var blob = new Blob(['\uFEFF'+lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName.replace(/\.csv$/i,'') + '_edited.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setSavedChanges(false);
+}
+</script>
+</body>
+</html>
