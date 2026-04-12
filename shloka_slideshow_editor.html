@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -289,15 +290,17 @@ button.tb.dl.active:hover  { background: #2e7a4e; }
 var rows = [], idx = 0, dirty = false, savedChanges = false, pendingIdx = -1, fileName = 'shlokas.csv';
 
 /* ── File loading ───────────────────────────────────────────── */
-function loadFromURL() {
-  var url = document.getElementById('csv-url-input').value.trim();
-  if (!url) return;
-  // Convert GitHub blob URL to raw
+function fetchAndLoad(url) {
   url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
   fetch(url)
     .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
     .then(function(text) { fileName = url.split('/').pop() || 'remote.csv'; loadCSV(text); })
     .catch(function(err) { alert('Could not load URL:\n' + err.message); });
+}
+
+function loadFromURL() {
+  var url = document.getElementById('csv-url-input').value.trim();
+  if (url) fetchAndLoad(url);
 }
 
 document.getElementById('csv-url-input').addEventListener('keydown', function(e) {
@@ -510,6 +513,13 @@ function downloadCSV() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setSavedChanges(false);
 }
+
+/* ── Auto-load from ?url= / ?csv= / ?src= address parameter ── */
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var url = params.get('url') || params.get('csv') || params.get('src');
+  if (url) fetchAndLoad(url);
+})();
 </script>
 </body>
 </html>
