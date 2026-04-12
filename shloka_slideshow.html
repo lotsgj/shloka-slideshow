@@ -440,6 +440,10 @@
   function loadFromURL() {
     var url = document.getElementById('url-input').value.trim();
     if (!url) return;
+    fetchAndParse(url);
+  }
+
+  function fetchAndParse(url) {
     // Support GitHub blob URLs → raw
     url = url.replace('github.com', 'raw.githubusercontent.com')
               .replace('/blob/', '/');
@@ -494,6 +498,13 @@
   window.addEventListener('resize', function(){ clearTimeout(resizeTimer); resizeTimer = setTimeout(fitAll, 80); });
   document.addEventListener('fullscreenchange', function(){ setTimeout(fitAll, 120); });
   document.addEventListener('webkitfullscreenchange', function(){ setTimeout(fitAll, 120); });
+
+  /* Auto-load from ?url= / ?csv= / ?src= address parameter */
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var url = params.get('url') || params.get('csv') || params.get('src');
+    if (url) fetchAndParse(url);
+  })();
 </script>
 </body>
 </html>
