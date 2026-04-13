@@ -175,6 +175,15 @@ function parseVerse(raw, v) {
   var sanLines = [], transLines = [], wbw = '', translation = '';
   var state = 'seek-san';
 
+  // Normalise a Sanskrit line:
+  // - Preserve | and ||N|| exactly as they appear
+  // - Normalise ||N|| spacing: || 1|| → ||1||
+  // - Strip trailing whitespace
+  function normSan(l) {
+    l = l.replace(/\|\|\s*(\d+)\s*\|\|/g, '||$1||'); // normalise verse numbers
+    return l.trim();
+  }
+
   for (var i = startIdx + 1; i < lines.length; i++) {
     var l = lines[i];
     var empty   = (l === '');
@@ -188,21 +197,17 @@ function parseVerse(raw, v) {
     if (state === 'seek-san') {
       if (hasDeva) {
         state = 'san';
-        var cl = l.replace(/[|।]+\s*\d+\s*[|।]*/g,'').replace(/\|\s*$/,'').trim();
+        var cl = normSan(l);
         if (cl) sanLines.push(cl);
       }
 
     } else if (state === 'san') {
       if (hasDeva) {
-        // Another Sanskrit line
-        var cl = l.replace(/[|।]+\s*\d+\s*[|।]*/g,'').replace(/\|\s*$/,'').trim();
+        var cl = normSan(l);
         if (cl) sanLines.push(cl);
       } else if (empty) {
-        // blank after Sanskrit → move to seek IAST
         state = 'seek-trans';
       } else {
-        // Non-empty non-Devanagari immediately after Sanskrit
-        // (happens when <br> becomes space, so lines run together — shouldn't occur but be safe)
         state = 'seek-trans';
         if (hasIAST && !hasEm) { state = 'trans'; transLines.push(l); }
       }
@@ -212,10 +217,8 @@ function parseVerse(raw, v) {
         state = 'trans';
         transLines.push(l);
       } else if (!empty && !hasIAST && !hasDeva) {
-        // Non-IAST content after Sanskrit — we've gone past the verse text
-        // (e.g. "Your browser does not support...")
         if (transLines.length === 0 && l.indexOf('browser') === -1) {
-          // keep seeking — might be a stray blank line converted differently
+          // keep seeking
         } else if (transLines.length > 0) {
           break;
         }
@@ -225,7 +228,6 @@ function parseVerse(raw, v) {
       if (!empty && hasIAST && !hasDeva && !hasEm) {
         transLines.push(l);
       } else {
-        // Done with IAST block
         state = 'done';
       }
     }
@@ -237,12 +239,10 @@ function parseVerse(raw, v) {
   }
 
   // ── 3. Translation ───────────────────────────────────────────────────────
-  // Find "## Translation" or "Translation" heading, then the BG X.Y: line
   for (var i = 0; i < lines.length; i++) {
     if (/^##\s*Translation/.test(lines[i]) || /^Translation\s*$/.test(lines[i])) {
       for (var j = i + 1; j < Math.min(i + 8, lines.length); j++) {
         var tl = lines[j];
-        // Strip leading "BG 7.1:" label (may be on same or separate line)
         tl = tl.replace(/^BG\s*[\d.]+\s*:\s*/i, '').replace(/\*([^*]+)\*/g, '$1').trim();
         if (tl.length > 8) { translation = tl; break; }
       }
@@ -250,12 +250,28 @@ function parseVerse(raw, v) {
     }
   }
 
-  function clean(s) { return (s||'').replace(/\s+/g,' ').replace(/#/g,'').trim(); }
+  // clean: strip # (our delimiter) but preserve \n line-break markers
+  function clean(s) {
+    return (s||'').replace(/#/g,'').replace(/\s+/g,' ').trim();
+  }
+  // cleanLines: collapse whitespace within each segment, join with literal \n (two chars)
+  function cleanLines(s) {
+    return (s||'').replace(/#/g,'')
+      .split('\n')
+      .map(function(seg){ return seg.replace(/\s+/g,' ').trim(); })
+      .filter(Boolean)
+      .join('\\n')   // literal backslash-n, NOT a real newline
+      .trim();
+  }
+
+  // Join Sanskrit lines with literal \n so they stay on one CSV row
+  var sanJoined = sanLines.join('\\n');
+  sanJoined = sanJoined.replace(/\\n+$/, '');  // trim trailing literal \n
 
   return [
     'BG ' + CHAPTER + '.' + v,
-    clean(sanLines.join('\\n')),
-    clean(transLines.join('\\n')),
+    cleanLines(sanJoined),
+    cleanLines(transLines.join('\\n')),
     clean(translation),
     clean(wbw)
   ].join('#');
@@ -303,7 +319,7 @@ function downloadCSV() {
   var blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'gita_chapter' + CHAPTER + '.csv';
+  a.download = 'BG-' + CHAPTER + '.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 </script>
