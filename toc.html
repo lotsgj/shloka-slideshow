@@ -9,39 +9,56 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { min-height: 100%; font-family: system-ui, sans-serif; background: #eeeae3; }
 
+  /* ── Drop zone ───────────────────────────────────────── */
+  #drop-zone {
+    margin: 4rem auto; max-width: 480px;
+    border: 1.5px dashed #bbb; border-radius: 14px;
+    padding: 3rem 2rem; text-align: center;
+    background: #fff; transition: background 0.2s;
+  }
+  #drop-zone.drag-over { background: #f0efeb; border-color: #aaa; }
+  #drop-zone input[type=file] { display: none; }
+  #drop-zone .dz-icon { font-size: 2.5rem; margin-bottom: 0.75rem; color: #aaa; cursor: pointer; }
+  #drop-zone h2 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 0.4rem; cursor: pointer; }
+  #drop-zone p  { font-size: 13px; color: #888; margin-bottom: 1.2rem; }
+  #drop-zone .url-row { display: flex; gap: 8px; align-items: center; max-width: 380px; margin: 0 auto; }
+  #toc-url-input {
+    flex: 1; padding: 7px 12px; border-radius: 8px;
+    border: 0.5px solid #ccc; font-size: 13px; color: #333;
+    outline: none; font-family: system-ui, sans-serif; display: block;
+  }
+  #toc-url-input:focus { border-color: #c8b88a; }
+  #drop-zone .url-row button {
+    padding: 7px 14px; border-radius: 8px; border: 0.5px solid #ccc;
+    background: #fff; font-size: 13px; cursor: pointer;
+    font-family: system-ui, sans-serif; white-space: nowrap;
+  }
+  #drop-zone .url-row button:hover { background: #f5f5f5; }
+
+  /* ── Main app ────────────────────────────────────────── */
+  #app { display: none; }
+
   header {
     background: #fff; border-bottom: 0.5px solid #ddd;
     padding: 1.25rem 2rem;
-    display: flex; align-items: center; gap: 1rem;
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
   }
   header h1 { font-size: 18px; font-weight: 600; color: #222; font-family: Georgia, serif; }
   header .sub { font-size: 12px; color: #bbb; }
   header .edit-badge {
-    font-size: 11px; font-weight: 600;
-    color: #8a5cf6; background: #f3eeff;
-    border: 0.5px solid #c4b5fd;
-    border-radius: 20px; padding: 3px 10px;
-    letter-spacing: 0.04em;
+    font-size: 11px; font-weight: 600; color: #8a5cf6;
+    background: #f3eeff; border: 0.5px solid #c4b5fd;
+    border-radius: 20px; padding: 3px 10px; letter-spacing: 0.04em;
   }
 
-  /* ── Language selector ──────────────────────────────── */
-  #lang-wrap {
-    margin-left: auto;
-    display: flex; align-items: center; gap: 8px;
-  }
+  #lang-wrap { margin-left: auto; display: flex; align-items: center; gap: 8px; }
   #lang-select {
-    font-size: 13px; border-radius: 8px;
-    border: 0.5px solid #ddd; padding: 5px 10px;
-    background: #fafafa; color: #444;
-    cursor: pointer; outline: none;
-    font-family: system-ui, sans-serif;
+    font-size: 13px; border-radius: 8px; border: 0.5px solid #ddd;
+    padding: 5px 10px; background: #fafafa; color: #444;
+    cursor: pointer; outline: none; font-family: system-ui, sans-serif;
   }
   #lang-select:focus { border-color: #c8b88a; }
-  #lang-status {
-    font-size: 11px; color: #aaa;
-    font-family: system-ui, sans-serif;
-    white-space: nowrap;
-  }
+  #lang-status { font-size: 11px; color: #aaa; white-space: nowrap; }
 
   #grid {
     display: grid;
@@ -53,71 +70,79 @@
   .card-wrap { position: relative; }
 
   .card {
-    background: #fff; border: 0.5px solid #ddd;
-    border-radius: 14px; padding: 1.4rem 1.5rem 1.25rem;
-    cursor: pointer; text-decoration: none;
+    background: #fff; border: 0.5px solid #ddd; border-radius: 14px;
+    padding: 1.4rem 1.5rem 1.25rem; cursor: pointer; text-decoration: none;
     display: flex; flex-direction: column; gap: 8px;
     transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
     position: relative; overflow: hidden;
   }
-  .card:hover {
-    border-color: #c8c0b0;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.08);
-    transform: translateY(-2px);
-  }
+  .card:hover { border-color: #c8c0b0; box-shadow: 0 4px 18px rgba(0,0,0,0.08); transform: translateY(-2px); }
   .card:active { transform: translateY(0); box-shadow: none; }
   body.edit-mode .card { border-color: #e0d8f0; }
 
-  .card-num {
-    font-size: 11px; font-weight: 600; color: #c8b88a;
-    letter-spacing: 0.08em; text-transform: uppercase;
-  }
-  .card-title {
-    font-size: 15px; font-weight: 500; color: #1a1209;
-    line-height: 1.4; font-family: Georgia, serif;
-  }
-  .card-arrow {
-    position: absolute; bottom: 1rem; right: 1.25rem;
-    font-size: 14px; color: #ccc;
-    transition: color 0.15s, right 0.15s;
-  }
+  .card-num { font-size: 11px; font-weight: 600; color: #c8b88a; letter-spacing: 0.08em; text-transform: uppercase; }
+  .card-title { font-size: 15px; font-weight: 500; color: #1a1209; line-height: 1.4; font-family: Georgia, serif; }
+  .card-arrow { position: absolute; bottom: 1rem; right: 1.25rem; font-size: 14px; color: #ccc; transition: color 0.15s, right 0.15s; }
   .card:hover .card-arrow { color: #8a7a55; right: 1rem; }
   .card::before {
     content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
     background: linear-gradient(to bottom, #d4b896, #c8a870);
-    border-radius: 14px 0 0 14px;
-    opacity: 0; transition: opacity 0.15s;
+    border-radius: 14px 0 0 14px; opacity: 0; transition: opacity 0.15s;
   }
   .card:hover::before { opacity: 1; }
 
   .edit-btn {
-    display: none; position: absolute;
-    top: 50%; right: -14px; transform: translateY(-50%);
-    z-index: 10; width: 32px; height: 32px; border-radius: 50%;
+    display: none; position: absolute; top: 50%; right: -14px;
+    transform: translateY(-50%); z-index: 10;
+    width: 32px; height: 32px; border-radius: 50%;
     background: #8a5cf6; border: 2px solid #fff;
     box-shadow: 0 2px 8px rgba(138,92,246,0.35);
     align-items: center; justify-content: center;
-    cursor: pointer; transition: background 0.15s, transform 0.15s;
-    text-decoration: none;
+    cursor: pointer; transition: background 0.15s, transform 0.15s; text-decoration: none;
   }
   .edit-btn:hover { background: #7c3aed; transform: translateY(-50%) scale(1.12); }
   .edit-btn svg { width: 14px; height: 14px; fill: #fff; }
   body.edit-mode .edit-btn { display: flex; }
   body.edit-mode .card-wrap { margin-right: 14px; }
 
-  #error-msg {
-    display: none; text-align: center;
-    padding: 4rem 2rem; color: #aaa; font-size: 14px;
+  /* ── Lang picker modal (for local-file lang switch) ──── */
+  #lang-picker-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35); align-items: center;
+    justify-content: center; z-index: 50;
   }
-  #error-msg code {
-    display: inline-block; margin-top: 0.5rem;
-    font-size: 12px; background: #f0f0f0;
-    padding: 3px 8px; border-radius: 5px; color: #666;
+  #lang-picker-overlay.show { display: flex; }
+  #lang-picker-box {
+    background: #fff; border-radius: 14px; border: 0.5px solid #ddd;
+    padding: 1.75rem 2rem; max-width: 420px; width: 92%;
+    font-family: system-ui, sans-serif;
   }
+  #lang-picker-box h3 { font-size: 15px; font-weight: 600; color: #222; margin-bottom: 0.3rem; }
+  #lang-picker-box p  { font-size: 12px; color: #aaa; margin-bottom: 1.25rem; }
+  #lang-picker-box .dz-icon { font-size: 2rem; margin-bottom: 0.5rem; cursor: pointer; color: #aaa; }
+  #lang-picker-box h4 { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 0.4rem; cursor: pointer; }
+  #lang-picker-file { display: none; }
+  .lp-url-row { display: flex; gap: 8px; margin-top: 0.75rem; }
+  #lang-picker-url {
+    flex: 1; padding: 6px 10px; border-radius: 8px;
+    border: 0.5px solid #ddd; font-size: 13px; color: #333;
+    outline: none; font-family: system-ui, sans-serif;
+  }
+  #lang-picker-url:focus { border-color: #c8b88a; }
+  .lp-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.2rem; }
+  .lp-btns button {
+    padding: 7px 16px; border-radius: 8px; font-size: 13px;
+    cursor: pointer; border: 0.5px solid #ccc; background: #f5f5f5; color: #333;
+  }
+  .lp-btns button:hover { background: #eee; }
+  .lp-btns button.primary { background: #c8b88a; color: #fff; border-color: #b8a870; }
+  .lp-btns button.primary:hover { background: #b8a870; }
+
+  #error-inline { font-size: 12px; color: #c84040; margin-top: 0.5rem; min-height: 16px; }
 
   @media (max-width: 480px) {
     #grid { grid-template-columns: 1fr; padding: 1rem; gap: 10px; }
-    header { padding: 1rem 1.25rem; flex-wrap: wrap; }
+    header { padding: 1rem 1.25rem; }
     #lang-wrap { margin-left: 0; width: 100%; }
     body.edit-mode .card-wrap { margin-right: 18px; }
     .edit-btn { width: 36px; height: 36px; right: -18px; }
@@ -127,59 +152,104 @@
 </head>
 <body>
 
-<header>
-  <h1>Bhagavad Gita</h1>
-  <span class="sub">Select a chapter to begin</span>
-  <span class="edit-badge" id="edit-badge" style="display:none">✏ Edit mode</span>
-  <div id="lang-wrap">
-    <span id="lang-status"></span>
-    <select id="lang-select" onchange="onLangChange()">
-      <option value="en">🌐 English</option>
-      <option value="kn">ಕನ್ನಡ — Kannada</option>
-      <option value="hi">हिन्दी — Hindi</option>
-      <option value="te">తెలుగు — Telugu</option>
-      <option value="ta">தமிழ் — Tamil</option>
-      <option value="ml">മലയാളം — Malayalam</option>
-    </select>
+<!-- Drop zone (shown when no source is known) -->
+<div id="drop-zone">
+  <input type="file" id="toc-file-input" accept=".csv,.txt">
+  <div class="dz-icon" onclick="document.getElementById('toc-file-input').click()">📋</div>
+  <h2 onclick="document.getElementById('toc-file-input').click()">Upload your toc.csv</h2>
+  <p>Click above or drag a file here · Fields: number # title # url</p>
+  <div class="url-row">
+    <input type="text" id="toc-url-input" placeholder="or paste a public toc.csv URL…">
+    <button onclick="loadFromURLInput()">Load URL</button>
   </div>
-</header>
+</div>
 
-<div id="grid"></div>
-<div id="error-msg">
-  <p>Could not load the table of contents.</p>
-  <p style="margin-top:0.5rem">Make sure <code>/data/toc.csv</code> exists and the page is served from a web server.</p>
+<!-- Main app (shown after source is loaded) -->
+<div id="app">
+  <header>
+    <h1>Bhagavad Gita</h1>
+    <span class="sub">Select a chapter to begin</span>
+    <span class="edit-badge" id="edit-badge" style="display:none">✏ Edit mode</span>
+    <div id="lang-wrap">
+      <span id="lang-status"></span>
+      <select id="lang-select" onchange="onLangChange()">
+        <option value="en">🌐 English</option>
+        <option value="kn">ಕನ್ನಡ — Kannada</option>
+        <option value="hi">हिन्दी — Hindi</option>
+        <option value="te">తెలుగు — Telugu</option>
+        <option value="ta">தமிழ் — Tamil</option>
+        <option value="ml">മലയാളം — Malayalam</option>
+      </select>
+    </div>
+  </header>
+  <div id="grid"></div>
+</div>
+
+<!-- Lang picker modal: shown when local-file user switches language -->
+<div id="lang-picker-overlay">
+  <div id="lang-picker-box">
+    <h3 id="lp-title">Load language file</h3>
+    <p id="lp-sub">Upload the language-specific toc file or paste its URL.</p>
+    <div style="text-align:center">
+      <div class="dz-icon" onclick="document.getElementById('lang-picker-file').click()">📋</div>
+      <h4 onclick="document.getElementById('lang-picker-file').click()">Upload file</h4>
+      <input type="file" id="lang-picker-file" accept=".csv,.txt">
+    </div>
+    <div class="lp-url-row">
+      <input type="text" id="lang-picker-url" placeholder="or paste URL to toc.xx.csv…">
+    </div>
+    <div id="error-inline"></div>
+    <div class="lp-btns">
+      <button onclick="closeLangPicker()">Cancel</button>
+      <button class="primary" onclick="loadFromLangPicker()">Load</button>
+    </div>
+  </div>
 </div>
 
 <script>
-  /* ── Edit mode ───────────────────────────────────────────── */
+  /* ── State ──────────────────────────────────────────────── */
+  var sourceURL  = null;   // URL of the currently loaded English toc.csv (null = local file)
+  var sourceLang = 'en';   // currently displayed language
+  var pendingLang = null;  // lang user picked while in local-file mode
+
+  /* ── Edit mode ──────────────────────────────────────────── */
   var editMode = new URLSearchParams(window.location.search).get('edit') === 'true';
-  if (editMode) {
-    document.body.classList.add('edit-mode');
-    document.getElementById('edit-badge').style.display = '';
+  if (editMode) document.body.classList.add('edit-mode');
+
+  /* ── Helpers ────────────────────────────────────────────── */
+  function setStatus(msg) { document.getElementById('lang-status').textContent = msg; }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  /* ── Language config ─────────────────────────────────────── */
-  var LANG_CODES = { en: 'en', kn: 'kn', hi: 'hi', te: 'te', ta: 'ta', ml: 'ml' };
-
-  function tocPath(lang) {
-    return lang === 'en' ? '/data/toc.csv' : '/data/toc.' + lang + '.csv';
+  // Derive lang-specific URL from a base URL:
+  // https://…/toc.csv  + 'kn'  →  https://…/toc.kn.csv
+  function langURL(base, lang) {
+    if (lang === 'en') return base;
+    return base.replace(/\.csv(\s*)$/i, '.' + lang + '.csv$1');
   }
 
-  function savedLang() {
-    return localStorage.getItem('toc_lang') || 'en';
+  function fixGithubURL(url) {
+    return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
   }
 
-  function setStatus(msg) {
-    document.getElementById('lang-status').textContent = msg;
+  function showApp() {
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    if (editMode) document.getElementById('edit-badge').style.display = '';
   }
 
-  /* ── Render grid from CSV text ───────────────────────────── */
+  /* ── Render grid ────────────────────────────────────────── */
   function renderGrid(text) {
     var grid = document.getElementById('grid');
     grid.innerHTML = '';
-
+    text = text.replace(/^\uFEFF/, '');
     var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-    var start = /^(number|title)/i.test(lines[0]) ? 1 : 0;
+    if (!lines.length) throw new Error('CSV is empty');
+
+    var firstField = lines[0].split('#')[0].trim().toLowerCase();
+    var start = isNaN(Number(firstField)) || firstField === '' ? 1 : 0;
 
     lines.slice(start).forEach(function(line) {
       var parts = line.split('#');
@@ -197,78 +267,208 @@
       var a = document.createElement('a');
       a.className = 'card';
       a.href = viewerURL;
-      a.target = '_blank';
-      a.rel = 'noopener';
+      a.target = '_blank'; a.rel = 'noopener';
       a.innerHTML =
         (num ? '<div class="card-num">Chapter ' + num + '</div>' : '') +
         '<div class="card-title">' + escHtml(title) + '</div>' +
         '<div class="card-arrow">→</div>';
 
-      var editBtn = document.createElement('a');
-      editBtn.className = 'edit-btn';
-      editBtn.href = editorURL;
-      editBtn.target = '_blank';
-      editBtn.rel = 'noopener';
-      editBtn.title = 'Edit ' + title;
-      editBtn.innerHTML =
+      var eb = document.createElement('a');
+      eb.className = 'edit-btn';
+      eb.href = editorURL; eb.target = '_blank'; eb.rel = 'noopener';
+      eb.title = 'Edit ' + title;
+      eb.innerHTML =
         '<svg viewBox="0 0 24 24">' +
         '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/>' +
         '<path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>' +
         '</svg>';
-      editBtn.addEventListener('click', function(e){ e.stopPropagation(); });
+      eb.addEventListener('click', function(e){ e.stopPropagation(); });
 
-      wrap.appendChild(a);
-      wrap.appendChild(editBtn);
+      wrap.appendChild(a); wrap.appendChild(eb);
       grid.appendChild(wrap);
     });
-
-    if (!grid.children.length) throw new Error('No rows found in CSV');
   }
 
-  /* ── Load a language CSV ─────────────────────────────────── */
-  function loadLang(lang, isUserAction) {
-    setStatus(isUserAction ? 'Loading…' : '');
-    fetch(tocPath(lang))
-      .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
+  /* ── Fetch and render from URL ──────────────────────────── */
+  function fetchAndRender(url, onSuccess, onFail) {
+    url = fixGithubURL(url);
+    fetch(url)
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function(text){ renderGrid(text); if (onSuccess) onSuccess(); })
+      .catch(function(e){ if (onFail) onFail(e); });
+  }
+
+  /* ── Load from text (file or fetched) ───────────────────── */
+  function applyText(text, lang) {
+    renderGrid(text);
+    sourceLang = lang;
+    document.getElementById('lang-select').value = lang;
+    localStorage.setItem('toc_lang', lang);
+    setStatus('');
+    showApp();
+  }
+
+  /* ── Load English from URL (and remember it) ────────────── */
+  function loadSourceURL(url, lang) {
+    lang = lang || 'en';
+    var target = langURL(fixGithubURL(url), lang);
+    setStatus('Loading…');
+    fetch(target)
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function(text){
+        sourceURL = fixGithubURL(url);           // always store the English base URL
+        localStorage.setItem('toc_source_url', sourceURL);
+        applyText(text, lang);
       })
-      .then(function(text) {
-        renderGrid(text);
-        localStorage.setItem('toc_lang', lang);
-        document.getElementById('lang-select').value = lang;
-        document.getElementById('error-msg').style.display = 'none';
-        setStatus('');
-      })
-      .catch(function(err) {
+      .catch(function(e){
         if (lang !== 'en') {
-          // Revert to English
-          setStatus('Not available — showing English');
-          document.getElementById('lang-select').value = savedLang() === lang ? 'en' : savedLang();
-          loadLang('en', false);
-        } else {
-          document.getElementById('error-msg').style.display = 'block';
+          // fall back to English
           setStatus('');
+          loadSourceURL(url, 'en');
+        } else {
+          setStatus('');
+          alert('Could not load TOC:\n' + e.message);
         }
       });
   }
 
-  /* ── Language dropdown change ────────────────────────────── */
+  /* ── Drop zone: file upload ─────────────────────────────── */
+  document.getElementById('toc-file-input').addEventListener('change', function(e) {
+    var f = e.target.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function(ev) {
+      sourceURL = null;  // local file — no derivable URL
+      localStorage.removeItem('toc_source_url');
+      applyText(ev.target.result, 'en');
+    };
+    r.readAsText(f);
+  });
+
+  var dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('drag-over'); });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault(); dz.classList.remove('drag-over');
+    var f = e.dataTransfer.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function(ev){
+      sourceURL = null;
+      localStorage.removeItem('toc_source_url');
+      applyText(ev.target.result, 'en');
+    };
+    r.readAsText(f);
+  });
+
+  document.getElementById('toc-url-input').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') loadFromURLInput();
+  });
+
+  function loadFromURLInput() {
+    var url = document.getElementById('toc-url-input').value.trim();
+    if (!url) { document.getElementById('toc-url-input').focus(); return; }
+    loadSourceURL(url, savedLang());
+  }
+
+  /* ── Language change ────────────────────────────────────── */
+  function savedLang() { return localStorage.getItem('toc_lang') || 'en'; }
+
   function onLangChange() {
     var lang = document.getElementById('lang-select').value;
-    loadLang(lang, true);
+    if (lang === sourceLang) return;
+
+    if (sourceURL) {
+      // URL source — derive lang variant automatically
+      setStatus('Loading…');
+      var target = langURL(sourceURL, lang);
+      fetch(target)
+        .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function(text){ applyText(text, lang); })
+        .catch(function(){
+          setStatus('Not available — showing English');
+          document.getElementById('lang-select').value = 'en';
+          if (sourceLang !== 'en') loadSourceURL(sourceURL, 'en');
+          else localStorage.setItem('toc_lang', 'en');
+          sourceLang = 'en';
+          setTimeout(function(){ setStatus(''); }, 2500);
+        });
+    } else {
+      // Local file source — show picker for this language
+      pendingLang = lang;
+      var LANG_NAMES = { en:'English', kn:'Kannada', hi:'Hindi', te:'Telugu', ta:'Tamil', ml:'Malayalam' };
+      document.getElementById('lp-title').textContent = 'Load ' + LANG_NAMES[lang] + ' TOC';
+      document.getElementById('lp-sub').textContent =
+        'Upload toc.' + lang + '.csv or paste its URL.';
+      document.getElementById('lang-picker-url').value = '';
+      document.getElementById('error-inline').textContent = '';
+      document.getElementById('lang-picker-overlay').classList.add('show');
+    }
   }
 
-  /* ── Init ────────────────────────────────────────────────── */
+  /* ── Lang picker modal ──────────────────────────────────── */
+  function closeLangPicker() {
+    document.getElementById('lang-picker-overlay').classList.remove('show');
+    // revert selector if user cancelled
+    document.getElementById('lang-select').value = sourceLang;
+    pendingLang = null;
+  }
+
+  document.getElementById('lang-picker-file').addEventListener('change', function(e) {
+    var f = e.target.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function(ev){
+      try {
+        renderGrid(ev.target.result);
+        sourceLang = pendingLang;
+        localStorage.setItem('toc_lang', pendingLang);
+        document.getElementById('lang-picker-overlay').classList.remove('show');
+        pendingLang = null;
+      } catch(err) {
+        document.getElementById('error-inline').textContent = 'Could not parse file: ' + err.message;
+      }
+    };
+    r.readAsText(f);
+  });
+
+  document.getElementById('lang-picker-url').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') loadFromLangPicker();
+  });
+
+  function loadFromLangPicker() {
+    var url = document.getElementById('lang-picker-url').value.trim();
+    if (!url) { document.getElementById('lang-picker-url').focus(); return; }
+    document.getElementById('error-inline').textContent = '';
+    fetchAndRender(url,
+      function() {
+        sourceLang = pendingLang;
+        localStorage.setItem('toc_lang', pendingLang);
+        document.getElementById('lang-picker-overlay').classList.remove('show');
+        pendingLang = null;
+      },
+      function(e) {
+        document.getElementById('error-inline').textContent = 'Could not load: ' + e.message;
+      }
+    );
+  }
+
+  /* ── Init ───────────────────────────────────────────────── */
   (function() {
-    var lang = savedLang();
-    document.getElementById('lang-select').value = lang;
-    loadLang(lang, false);
-  })();
+    var params     = new URLSearchParams(window.location.search);
+    var tocParam   = params.get('toc');
+    var langParam  = params.get('lang') || savedLang();
 
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+    if (tocParam && tocParam !== 'local') {
+      // ?toc=<url> — load directly
+      loadSourceURL(tocParam, langParam);
+    } else {
+      // No param — try restoring from localStorage
+      var saved = localStorage.getItem('toc_source_url');
+      if (saved) {
+        document.getElementById('toc-url-input').value = saved;
+        loadSourceURL(saved, langParam);
+      }
+      // otherwise drop zone stays visible
+    }
+  })();
 </script>
 </body>
 </html>
